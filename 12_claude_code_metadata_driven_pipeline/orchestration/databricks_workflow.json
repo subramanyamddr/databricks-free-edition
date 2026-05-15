@@ -1,0 +1,271 @@
+{
+  "_comment": "Databricks Workflow — Metadata-Driven Pipeline Orchestration DAG",
+  "_version": "1.0",
+  "_description": "Full end-to-end workflow: Bronze ingestion → Silver transformation → Gold aggregation",
+
+  "name": "metadata_driven_lakehouse_pipeline",
+  "timeout_seconds": 7200,
+  "max_concurrent_runs": 1,
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "UTC",
+    "pause_status": "UNPAUSED"
+  },
+  "job_clusters": [
+    {
+      "job_cluster_key": "bronze_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-scala2.12",
+        "node_type_id": "Standard_DS4_v2",
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 8
+        },
+        "spark_conf": {
+          "spark.databricks.delta.optimizeWrite.enabled": "true",
+          "spark.databricks.delta.autoCompact.enabled": "true",
+          "spark.sql.adaptive.enabled": "true",
+          "spark.sql.adaptive.coalescePartitions.enabled": "true",
+          "spark.sql.shuffle.partitions": "auto"
+        },
+        "azure_attributes": {
+          "availability": "SPOT_WITH_FALLBACK_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "init_scripts": [
+          {
+            "workspace": {
+              "destination": "/Shared/init_scripts/install_jdbc_drivers.sh"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "job_cluster_key": "silver_gold_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-scala2.12",
+        "node_type_id": "Standard_DS4_v2",
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 6
+        },
+        "spark_conf": {
+          "spark.databricks.delta.optimizeWrite.enabled": "true",
+          "spark.databricks.delta.autoCompact.enabled": "true",
+          "spark.sql.adaptive.enabled": "true"
+        },
+        "azure_attributes": {
+          "availability": "SPOT_WITH_FALLBACK_AZURE",
+          "spot_bid_max_price": -1
+        }
+      }
+    }
+  ],
+  "tasks": [
+
+    {
+      "task_key": "bronze_crm_customers",
+      "description": "Ingest CRM customers from SQL Server",
+      "job_cluster_key": "bronze_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/ingestion/bronze_ingestion_orchestrator",
+        "base_parameters": {
+          "pipeline_name": "sqlserver_crm_customers_incremental",
+          "retry_attempt": "0"
+        }
+      },
+      "retry_on_timeout": true,
+      "max_retries": 3,
+      "min_retry_interval_millis": 60000,
+      "timeout_seconds": 1800,
+      "email_notifications": {
+        "on_failure": ["data-alerts@company.com"]
+      }
+    },
+
+    {
+      "task_key": "bronze_finance_gl",
+      "description": "Ingest GL transactions from Oracle Finance",
+      "job_cluster_key": "bronze_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/ingestion/bronze_ingestion_orchestrator",
+        "base_parameters": {
+          "pipeline_name": "oracle_finance_gl_transactions_incremental",
+          "retry_attempt": "0"
+        }
+      },
+      "retry_on_timeout": true,
+      "max_retries": 3,
+      "min_retry_interval_millis": 60000,
+      "timeout_seconds": 3600
+    },
+
+    {
+      "task_key": "bronze_hr_employees",
+      "description": "Ingest HR employee CSV from ADLS",
+      "job_cluster_key": "bronze_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/ingestion/bronze_ingestion_orchestrator",
+        "base_parameters": {
+          "pipeline_name": "blob_hr_employee_export_csv",
+          "retry_attempt": "0"
+        }
+      },
+      "max_retries": 2,
+      "timeout_seconds": 900
+    },
+
+    {
+      "task_key": "bronze_ref_country_codes",
+      "description": "Full load reference country codes",
+      "job_cluster_key": "bronze_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/ingestion/bronze_ingestion_orchestrator",
+        "base_parameters": {
+          "pipeline_name": "sqlserver_ref_country_codes_full",
+          "retry_attempt": "0"
+        }
+      },
+      "max_retries": 2,
+      "timeout_seconds": 300
+    },
+
+    {
+      "task_key": "silver_crm_customers",
+      "description": "Transform CRM customers to Silver (SCD1 MERGE)",
+      "depends_on": [
+        {"task_key": "bronze_crm_customers"},
+        {"task_key": "bronze_ref_country_codes"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/silver_transformation_engine",
+        "base_parameters": {
+          "pipeline_name": "sqlserver_crm_customers_incremental"
+        }
+      },
+      "max_retries": 2,
+      "timeout_seconds": 1800
+    },
+
+    {
+      "task_key": "silver_finance_gl",
+      "description": "Transform GL transactions to Silver (incremental MERGE)",
+      "depends_on": [
+        {"task_key": "bronze_finance_gl"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/silver_transformation_engine",
+        "base_parameters": {
+          "pipeline_name": "oracle_finance_gl_transactions_incremental"
+        }
+      },
+      "max_retries": 2,
+      "timeout_seconds": 3600
+    },
+
+    {
+      "task_key": "silver_hr_employees",
+      "description": "Transform HR employees to Silver (SCD2)",
+      "depends_on": [
+        {"task_key": "bronze_hr_employees"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/silver_transformation_engine",
+        "base_parameters": {
+          "pipeline_name": "blob_hr_employee_export_csv"
+        }
+      },
+      "max_retries": 2,
+      "timeout_seconds": 1800
+    },
+
+    {
+      "task_key": "gold_customer_sales_fact",
+      "description": "Build Gold customer sales fact table",
+      "depends_on": [
+        {"task_key": "silver_crm_customers"},
+        {"task_key": "silver_finance_gl"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/gold_aggregation_engine",
+        "base_parameters": {
+          "gold_table_name": "fact_customer_sales"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 2400
+    },
+
+    {
+      "task_key": "gold_customer_ltv",
+      "description": "Build Customer LTV table for Data Science",
+      "depends_on": [
+        {"task_key": "silver_crm_customers"},
+        {"task_key": "silver_finance_gl"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/gold_aggregation_engine",
+        "base_parameters": {
+          "gold_table_name": "customer_ltv"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 2400
+    },
+
+    {
+      "task_key": "gold_monthly_revenue",
+      "description": "Build monthly revenue rollup for Finance",
+      "depends_on": [
+        {"task_key": "silver_crm_customers"},
+        {"task_key": "silver_finance_gl"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "notebook_task": {
+        "notebook_path": "/Shared/framework/notebooks/transformation/gold_aggregation_engine",
+        "base_parameters": {
+          "gold_table_name": "monthly_revenue_summary"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 1800
+    },
+
+    {
+      "task_key": "optimize_delta_tables",
+      "description": "Run OPTIMIZE + ZORDER on key Delta tables",
+      "depends_on": [
+        {"task_key": "gold_customer_sales_fact"},
+        {"task_key": "gold_monthly_revenue"}
+      ],
+      "job_cluster_key": "silver_gold_cluster",
+      "sql_task": {
+        "warehouse_id": "{{sql_warehouse_id}}",
+        "query": {
+          "query_id": "optimize_all_tables"
+        }
+      },
+      "timeout_seconds": 3600
+    }
+  ],
+
+  "email_notifications": {
+    "on_start":   [],
+    "on_success": ["data-team@company.com"],
+    "on_failure": ["data-alerts@company.com", "oncall@company.com"]
+  },
+
+  "webhook_notifications": {
+    "on_failure": [
+      {
+        "id": "teams-webhook-pipeline-alerts"
+      }
+    ]
+  }
+}
