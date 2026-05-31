@@ -1,0 +1,179 @@
+# =============================================================================
+# .github/workflows/deploy_pipeline.yml
+# GitHub Actions – CI/CD for fin-platform medallion pipeline
+#
+# Workflow:
+#   push to  feature/*    → run unit tests only
+#   push to  develop      → deploy to DEV + smoke test
+#   push to  release/*    → deploy to UAT + integration tests
+#   push to  main / tag   → deploy to PROD (with manual approval gate)
+# =============================================================================
+
+name: fin-platform pipeline CI/CD
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'develop'
+      - 'release/**'
+      - 'feature/**'
+  pull_request:
+    branches: [main, develop]
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, uat, prod]
+      file_date:
+        description: 'File date (YYYY-MM-DD) for triggered run'
+        required: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ── 1. Lint & Unit Tests ─────────────────────────────────────────────────
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          pip install \
+            pytest pytest-cov \
+            pyspark==3.5.0 \
+            delta-spark==3.2.0 \
+            flake8 black isort
+
+      - name: Lint (flake8 + black check)
+        run: |
+          flake8 databricks_medallion/ --max-line-length=110 --ignore=E501,W503
+          black --check databricks_medallion/
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --cov=databricks_medallion --cov-report=xml
+        env:
+          PYSPARK_PYTHON: python3
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+
+  # ── 2. Deploy to DEV ─────────────────────────────────────────────────────
+  deploy_dev:
+    name: Deploy → DEV
+    needs: test
+    runs-on: ubuntu-latest
+    environment: dev
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        run: pip install databricks-cli==0.18.0
+
+      - name: Deploy to DEV
+        env:
+          DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST_DEV }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN_DEV }}
+          SQL_WAREHOUSE_ID: ${{ secrets.SQL_WAREHOUSE_ID_DEV }}
+        run: |
+          chmod +x databricks_medallion/04_orchestration/deploy.sh
+          bash databricks_medallion/04_orchestration/deploy.sh --env dev
+
+      - name: Smoke test – trigger pipeline run
+        env:
+          DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST_DEV }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN_DEV }}
+        run: |
+          FILE_DATE=${{ github.event.inputs.file_date || '$(date -u +%Y-%m-%d)' }}
+          echo "Triggering smoke test for date: $FILE_DATE"
+          databricks jobs run-now \
+            --job-name "fin-platform-daily-pipeline-dev" \
+            --job-parameters "{\"env\":\"dev\",\"file_date\":\"$FILE_DATE\"}"
+
+  # ── 3. Deploy to UAT ─────────────────────────────────────────────────────
+  deploy_uat:
+    name: Deploy → UAT
+    needs: deploy_dev
+    runs-on: ubuntu-latest
+    environment: uat
+    if: startsWith(github.ref, 'refs/heads/release/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        run: pip install databricks-cli==0.18.0
+
+      - name: Deploy to UAT
+        env:
+          DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST_UAT }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN_UAT }}
+          SQL_WAREHOUSE_ID: ${{ secrets.SQL_WAREHOUSE_ID_UAT }}
+        run: |
+          bash databricks_medallion/04_orchestration/deploy.sh --env uat
+
+      - name: Integration tests on UAT
+        env:
+          DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST_UAT }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN_UAT }}
+        run: |
+          echo "Running integration test notebook..."
+          databricks jobs run-now \
+            --job-name "fin-platform-daily-pipeline-uat" \
+            --job-parameters "{\"env\":\"uat\"}"
+
+  # ── 4. Deploy to PROD (manual approval gate) ─────────────────────────────
+  deploy_prod:
+    name: Deploy → PROD
+    needs: deploy_uat
+    runs-on: ubuntu-latest
+    environment: prod           # ← GitHub Environment with required reviewers set
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        run: pip install databricks-cli==0.18.0
+
+      - name: Deploy to PROD
+        env:
+          DATABRICKS_HOST:       ${{ secrets.DATABRICKS_HOST_PROD }}
+          DATABRICKS_TOKEN:      ${{ secrets.DATABRICKS_TOKEN_PROD }}
+          SQL_WAREHOUSE_ID:      ${{ secrets.SQL_WAREHOUSE_ID_PROD }}
+          PAGERDUTY_WEBHOOK_ID:  ${{ secrets.PAGERDUTY_WEBHOOK_ID }}
+        run: |
+          bash databricks_medallion/04_orchestration/deploy.sh --env prod
+
+      - name: Tag release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          VERSION=$(date -u +"%Y.%m.%d")
+          git tag "release-$VERSION" || true
+          git push origin "release-$VERSION" || true
+
+      - name: Notify Slack on success
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {"text": "✅ fin-platform PROD deployment succeeded for ${{ github.sha }}"}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

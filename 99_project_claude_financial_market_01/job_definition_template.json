@@ -1,0 +1,114 @@
+{
+  "name": "fin-platform-daily-pipeline-${env}",
+  "description": "Financial Platform daily Bronze→Silver→Gold medallion pipeline",
+  "tags": {
+    "env": "${env}",
+    "team": "data-engineering",
+    "domain": "finance"
+  },
+  "schedule": {
+    "quartz_cron_expression": "0 0 9 * * ?",
+    "timezone_id": "UTC",
+    "pause_status": "UNPAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "timeout_seconds": 14400,
+  "email_notifications": {
+    "on_failure": ["data-engineering-alerts@yourcompany.com"],
+    "on_start":   [],
+    "on_success": []
+  },
+  "webhook_notifications": {
+    "on_failure": [
+      {
+        "id": "${pagerduty_webhook_id}"
+      }
+    ]
+  },
+  "health": {
+    "rules": [
+      {
+        "metric": "RUN_DURATION_SECONDS",
+        "op": "GREATER_THAN",
+        "value": 7200
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_key": "orchestrator",
+      "description": "Master orchestrator – runs all pipeline stages",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Repos/fin-platform/databricks_medallion/04_orchestration/04_orchestrate_daily_pipeline",
+        "base_parameters": {
+          "env":       "${env}",
+          "file_date": "{{job.start_time.iso_date}}"
+        },
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "libraries": [],
+      "timeout_seconds": 14400,
+      "retry_on_timeout": false,
+      "max_retries": 1,
+      "min_retry_interval_millis": 300000
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "pipeline_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "driver_node_type_id": "Standard_DS3_v2",
+        "num_workers": 2,
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 8
+        },
+        "spark_conf": {
+          "spark.databricks.delta.preview.enabled": "true",
+          "spark.databricks.delta.autoCompact.enabled": "true",
+          "spark.databricks.delta.optimizeWrite.enabled": "true",
+          "spark.sql.adaptive.enabled": "true",
+          "spark.sql.shuffle.partitions": "auto",
+          "env": "${env}"
+        },
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "SPOT_WITH_FALLBACK_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "spark_env_vars": {
+          "ENV": "${env}"
+        },
+        "data_security_mode": "SINGLE_USER",
+        "runtime_engine": "PHOTON",
+        "init_scripts": []
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "name": "env",
+      "default": "${env}"
+    },
+    {
+      "name": "file_date",
+      "default": "{{job.start_time.iso_date}}"
+    }
+  ],
+  "run_as": {
+    "service_principal_name": "svc-pipeline-${env}"
+  },
+  "access_control_list": [
+    {
+      "group_name": "data-engineers",
+      "permission_level": "CAN_MANAGE_RUN"
+    },
+    {
+      "group_name": "data-analysts",
+      "permission_level": "CAN_VIEW"
+    }
+  ]
+}
