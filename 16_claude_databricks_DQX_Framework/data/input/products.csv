@@ -1,0 +1,20 @@
+product_id,product_name,category,unit_price,currency,stock_quantity,supplier_id,created_date,is_active,weight_kg
+P101,Widget Alpha,Electronics,125.00,USD,500,S001,2022-01-01,true,0.5
+P102,Gadget Pro,Electronics,1200.00,USD,150,S001,2022-02-15,true,1.2
+P103,Basic Tool,Hardware,25.17,USD,1200,S002,2022-03-10,true,0.3
+P104,Premium Suite,Software,3500.00,USD,999,S003,2022-04-20,true,0.0
+P105,Economy Pack,Hardware,44.99,EUR,800,S002,2022-05-05,true,2.1
+P106,Enterprise License,Software,4500.00,USD,999,S003,2022-06-12,true,0.0
+P107,Mini Component,Electronics,50.00,USD,300,S001,2022-07-18,true,0.1
+P108,Combo Kit,Hardware,225.00,CAD,400,S002,2022-08-22,true,3.5
+P109,Standard Plan,Software,450.00,USD,999,S003,2022-09-30,true,0.0
+P110,Starter Pack,Accessories,99.99,USD,600,S004,2022-10-14,true,0.8
+P111,Luxury Item,,9999.00,USD,10,S005,2022-11-01,true,5.0
+P112,Budget Option,Accessories,60.00,USD,-50,S004,2022-12-05,true,0.4
+P113,Classic Model,Electronics,180.00,USD,200,S001,2023-01-10,true,0.9
+P114,Advanced Kit,Hardware,280.00,USD,350,S002,2023-02-14,true,2.8
+P115,Value Bundle,Accessories,170.00,CAD,450,S004,2023-03-20,true,1.5
+P116,Pro Upgrade,Software,,GBP,999,S003,2023-04-25,true,0.0
+P101,Widget Alpha,Electronics,125.00,USD,500,S001,2022-01-01,true,0.5
+P117,Economy Base,Hardware,35.00,USD,700,S002,2023-05-30,false,0.6
+P118,Smart Device,Electronics,750.00,USD,100,S001,2023-06-15,true,1.8
