@@ -1,0 +1,27 @@
+{
+  "pipeline_name": "sales_pipeline",
+  "log_level": "INFO",
+  "log_container": "pipeline-logs",
+
+  "bronze_schema": "bronze",
+  "silver_schema": "silver",
+  "gold_schema": "gold",
+  "quarantine_schema": "quarantine",
+
+  "bronze_table": "sales_raw",
+  "silver_table": "sales_cleaned",
+  "gold_table": "sales_summary",
+  "quarantine_table": "sales_quarantine",
+
+  "source_container": "raw-data",
+  "source_path": "sales/",
+
+  "silver_watermark_days": 1,
+  "dq_min_pass_rate_pct": 80.0,
+
+  "spark_conf": {
+    "spark.sql.shuffle.partitions": "8",
+    "spark.databricks.delta.optimizeWrite.enabled": "true",
+    "spark.databricks.delta.autoCompact.enabled": "true"
+  }
+}

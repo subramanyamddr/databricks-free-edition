@@ -1,0 +1,7 @@
+{
+  "adls_account": "devstorageaccount",
+  "catalog_name": "dev_catalog",
+  "log_level": "DEBUG",
+  "silver_watermark_days": 7,
+  "dq_min_pass_rate_pct": 50.0
+}

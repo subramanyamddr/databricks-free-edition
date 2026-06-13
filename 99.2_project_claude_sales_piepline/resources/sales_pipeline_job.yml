@@ -1,0 +1,104 @@
+# =============================================================================
+# resources/sales_pipeline_job.yml
+# Databricks Job resource — referenced by databricks.yml
+# =============================================================================
+
+resources:
+  jobs:
+    sales_pipeline_daily:
+
+      name: sales_pipeline_daily_${var.env}
+      description: "Medallion pipeline: CSV -> Bronze -> Silver (DQX) -> Gold (DQX)"
+
+      # ── Schedule ───────────────────────────────────────────────────────────
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"    # 06:00 daily IST (UTC+5:30 = 00:30 UTC)
+        timezone_id: "Asia/Kolkata"
+        pause_status: UNPAUSED
+
+      # ── Notifications ──────────────────────────────────────────────────────
+      email_notifications:
+        on_failure:
+          - data-engineering-alerts@yourcompany.com
+        on_success: []
+
+      # ── Webhook (optional — e.g. PagerDuty, Teams) ────────────────────────
+      # webhook_notifications:
+      #   on_failure:
+      #     - id: <webhook-id>
+
+      max_concurrent_runs: 1
+
+      # ── Shared cluster ─────────────────────────────────────────────────────
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: ${var.cluster_node_type}
+            num_workers: ${var.num_workers}
+            driver_node_type_id: "Standard_DS3_v2"
+            spark_conf:
+              spark.sql.shuffle.partitions: "8"
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+              spark.databricks.delta.autoCompact.enabled: "true"
+            azure_attributes:
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            init_scripts:
+              - workspace:
+                  destination: /Repos/sales_pipeline/init/install_dqx.sh
+            custom_tags:
+              pipeline: sales_pipeline
+              env: ${var.env}
+              team: data-engineering
+
+      # ── Tasks ──────────────────────────────────────────────────────────────
+      tasks:
+
+        - task_key: bronze_ingest
+          description: "Load CSV from ADLS Gen2 to Bronze Delta table"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../notebooks/01_csv_to_bronze
+            source: WORKSPACE
+            base_parameters:
+              env: ${var.env}
+              pipeline_run: "{{job.run_id}}"
+          timeout_seconds: 1800
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: false
+
+        - task_key: silver_clean
+          description: "Bronze -> Silver: cast, dedup, DQX checks, upsert"
+          depends_on:
+            - task_key: bronze_ingest
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../notebooks/02_bronze_to_silver
+            source: WORKSPACE
+            base_parameters:
+              env: ${var.env}
+              pipeline_run: "{{job.run_id}}"
+              watermark_days_override: ""
+          timeout_seconds: 3600
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: false
+
+        - task_key: gold_aggregate
+          description: "Silver -> Gold: aggregate, DQX checks, upsert"
+          depends_on:
+            - task_key: silver_clean
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ../notebooks/03_silver_to_gold
+            source: WORKSPACE
+            base_parameters:
+              env: ${var.env}
+              pipeline_run: "{{job.run_id}}"
+              run_date: ""
+          timeout_seconds: 1800
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          retry_on_timeout: false
