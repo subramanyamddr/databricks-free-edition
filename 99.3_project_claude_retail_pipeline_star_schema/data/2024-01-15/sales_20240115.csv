@@ -1,0 +1,13 @@
+order_id,order_date,customer_id,customer_name,customer_segment,customer_city,customer_state,product_id,product_name,category,sub_category,store_id,store_name,region,quantity,unit_price,discount_pct
+100001,2024-01-15,C001,Alice Johnson,Consumer,New York,NY,P001,Laptop Pro,Electronics,Computers,S01,Downtown Store,East,2,1200.00,5
+100002,2024-01-15,C002,Bob Smith,Corporate,Los Angeles,CA,P002,Wireless Mouse,Electronics,Accessories,S02,Westside Store,West,3,25.00,0
+100003,2024-01-15,C003,Carol White,Consumer,Chicago,IL,P003,Office Chair,Furniture,Seating,S03,North Mall,North,1,150.00,10
+100004,2024-01-15,C004,David Brown,Home Office,Houston,TX,P004,Desk Lamp,Furniture,Lighting,S04,South Plaza,South,2,35.00,0
+100005,2024-01-15,C005,Emma Davis,Corporate,Phoenix,AZ,P005,Notebook Set,Stationery,Paper,S01,Downtown Store,East,10,4.50,0
+100006,2024-01-15,C001,Alice Johnson,Consumer,New York,NY,P006,Monitor 24in,Electronics,Computers,S01,Downtown Store,East,1,220.00,5
+100007,2024-01-15,C006,Frank Miller,Consumer,Philadelphia,PA,P007,Standing Desk,Furniture,Desks,S02,Westside Store,West,1,450.00,15
+100008,2024-01-15,C007,Grace Wilson,Home Office,San Antonio,TX,P008,Headphones,Electronics,Accessories,S03,North Mall,North,2,80.00,0
+100009,2024-01-15,C008,Henry Moore,Corporate,San Diego,CA,P009,Pen Pack,Stationery,Writing,S04,South Plaza,South,5,3.00,0
+100010,2024-01-15,C002,Bob Smith,Corporate,Los Angeles,CA,P010,Webcam HD,Electronics,Accessories,S02,Westside Store,West,1,60.00,0
+100011,2024-01-15,,Carol White,Consumer,Chicago,IL,P003,Office Chair,Furniture,Seating,S03,North Mall,North,1,150.00,10
+100012,2024-01-15,C004,David Brown,Home Office,Houston,TX,P005,Notebook Set,Stationery,Paper,S04,South Plaza,South,-2,4.50,0

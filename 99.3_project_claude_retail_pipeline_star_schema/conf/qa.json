@@ -1,0 +1,7 @@
+{
+  "adls_account": "qastorageaccount",
+  "catalog_name": "qa_catalog",
+  "log_level": "INFO",
+  "silver_watermark_days": 1,
+  "dq_min_pass_rate_pct": 75.0
+}
