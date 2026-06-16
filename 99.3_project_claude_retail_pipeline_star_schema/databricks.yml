@@ -18,14 +18,6 @@ variables:
     description: "Target environment: dev | qa | prod"
   catalog_name:
     description: "Unity Catalog name for the target environment"
-  adls_account:
-    description: "ADLS Gen2 storage account name"
-  cluster_node_type:
-    default: "Standard_DS3_v2"
-    description: "Worker node type (Azure)"
-  num_workers:
-    default: "2"
-    description: "Number of worker nodes"
   process_date:
     default: ""
     description: "Optional override: business date yyyy-MM-dd (blank = yesterday)"
@@ -38,31 +30,27 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://adb-<dev-workspace-id>.azuredatabricks.net
+      host: https://dbc-4f4ede49-13be.cloud.databricks.com/
       root_path: /Workspace/Repos/${workspace.current_user.userName}/retail_pipeline
     variables:
       env: dev
       catalog_name: dev_catalog
-      adls_account: devstorageaccount
-      num_workers: "1"
 
   qa:
     mode: production
     workspace:
-      host: https://adb-<qa-workspace-id>.azuredatabricks.net
+      host: https://dbc-4f4ede49-13be.cloud.databricks.com/
       root_path: /Workspace/Repos/retail_pipeline
     run_as:
       service_principal_name: "<qa-service-principal-app-id>"
     variables:
       env: qa
       catalog_name: qa_catalog
-      adls_account: qastorageaccount
-      num_workers: "2"
 
   prod:
     mode: production
     workspace:
-      host: https://adb-<prod-workspace-id>.azuredatabricks.net
+      host: https://dbc-4f4ede49-13be.cloud.databricks.com/
       root_path: /Workspace/Repos/retail_pipeline
     run_as:
       service_principal_name: "<prod-service-principal-app-id>"
@@ -70,5 +58,3 @@ targets:
       env: prod
       catalog_name: prod_catalog
       adls_account: prodstorageaccount
-      num_workers: "4"
-      cluster_node_type: "Standard_DS4_v2"

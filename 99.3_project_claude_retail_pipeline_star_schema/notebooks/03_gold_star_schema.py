@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 # =============================================================================
 # notebooks/03_gold_star_schema.py
 # Layer    : GOLD (star schema)

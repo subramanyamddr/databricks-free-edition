@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 # =============================================================================
 # notebooks/02_silver_load.py
 # Layer    : SILVER

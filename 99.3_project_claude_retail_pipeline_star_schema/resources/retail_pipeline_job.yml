@@ -15,21 +15,10 @@ resources:
       name: retail_setup_run_ddl_${var.env}
       description: "One-time setup: create catalog, schemas, bronze/silver/gold/quarantine tables"
 
-      job_clusters:
-        - job_cluster_key: setup_cluster
-          new_cluster:
-            spark_version: "14.3.x-scala2.12"
-            node_type_id: ${var.cluster_node_type}
-            num_workers: "1"
-            azure_attributes:
-              availability: SPOT_WITH_FALLBACK_AZURE
-              spot_bid_max_price: -1
-
       tasks:
         - task_key: setup_run_ddl
-          job_cluster_key: setup_cluster
           notebook_task:
-            notebook_path: ../notebooks/setup_run_ddl
+            notebook_path: ../notebooks/setup_run_ddl.py
             source: WORKSPACE
             base_parameters:
               env: ${var.env}
@@ -47,39 +36,16 @@ resources:
 
       email_notifications:
         on_failure:
-          - data-engineering-alerts@yourcompany.com
+          - sumandby003@gmail.com
         on_success: []
 
       max_concurrent_runs: 1
 
-      job_clusters:
-        - job_cluster_key: pipeline_cluster
-          new_cluster:
-            spark_version: "14.3.x-scala2.12"
-            node_type_id: ${var.cluster_node_type}
-            num_workers: ${var.num_workers}
-            driver_node_type_id: "Standard_DS3_v2"
-            spark_conf:
-              spark.sql.shuffle.partitions: "8"
-              spark.databricks.delta.optimizeWrite.enabled: "true"
-              spark.databricks.delta.autoCompact.enabled: "true"
-            azure_attributes:
-              availability: SPOT_WITH_FALLBACK_AZURE
-              spot_bid_max_price: -1
-            init_scripts:
-              - workspace:
-                  destination: /Repos/retail_pipeline/init/install_dqx.sh
-            custom_tags:
-              pipeline: retail_pipeline
-              env: ${var.env}
-              team: data-engineering
-
       tasks:
         - task_key: bronze_ingest
           description: "Load daily sales CSV from ADLS Gen2 to Bronze"
-          job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../notebooks/01_bronze_ingest
+            notebook_path: ../notebooks/01_bronze_ingest.py
             source: WORKSPACE
             base_parameters:
               env: ${var.env}
@@ -94,9 +60,8 @@ resources:
           description: "Bronze -> Silver: cast, dedup, DQX checks, append"
           depends_on:
             - task_key: bronze_ingest
-          job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../notebooks/02_silver_load
+            notebook_path: ../notebooks/02_silver_load.py
             source: WORKSPACE
             base_parameters:
               env: ${var.env}
@@ -111,9 +76,8 @@ resources:
           description: "Silver -> Gold: upsert dims (SCD1), DQX checks, MERGE fact_sales"
           depends_on:
             - task_key: silver_load
-          job_cluster_key: pipeline_cluster
           notebook_task:
-            notebook_path: ../notebooks/03_gold_star_schema
+            notebook_path: ../notebooks/03_gold_star_schema.py
             source: WORKSPACE
             base_parameters:
               env: ${var.env}
@@ -129,21 +93,11 @@ resources:
       name: retail_setup_dim_date_${var.env}
       description: "One-time setup: populate gold.dim_date for the configured date range"
 
-      job_clusters:
-        - job_cluster_key: setup_cluster
-          new_cluster:
-            spark_version: "14.3.x-scala2.12"
-            node_type_id: ${var.cluster_node_type}
-            num_workers: "1"
-            azure_attributes:
-              availability: SPOT_WITH_FALLBACK_AZURE
-              spot_bid_max_price: -1
 
       tasks:
         - task_key: setup_dim_date
-          job_cluster_key: setup_cluster
           notebook_task:
-            notebook_path: ../notebooks/00_setup_dim_date
+            notebook_path: ../notebooks/00_setup_dim_date.py
             source: WORKSPACE
             base_parameters:
               env: ${var.env}

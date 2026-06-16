@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 # =============================================================================
 # notebooks/00_setup_dim_date.py
 # ONE-TIME SETUP notebook — populates gold.dim_date for a fixed date range.

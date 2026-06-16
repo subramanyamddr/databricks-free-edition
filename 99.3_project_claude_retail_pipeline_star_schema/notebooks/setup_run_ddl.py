@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 # =============================================================================
 # notebooks/setup_run_ddl.py
 # ONE-TIME SETUP notebook — runs all SQL DDL scripts for the target environment.
